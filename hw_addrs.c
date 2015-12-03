@@ -1,7 +1,13 @@
 #include "unp.h"
 #include "unpifi.h"
+#include <net/ethernet.h>
 #include <assert.h>
+#include <netpacket/packet.h>
+#include <net/if_arp.h>
 #include "hw_addrs.h"
+#include <stdio.h>
+#include <sys/socket.h>
+
 struct hwa_info * get_hw_addrs()
 {
 	struct hwa_info	*hwa, *hwahead, **hwapnext;
@@ -100,7 +106,7 @@ struct vm_iface_info *get_vm_iface_info(void)
 	for (hwa = Get_hw_addrs(); hwa != NULL; hwa = hwa->hwa_next) {
 		if (strcmp(hwa->if_name, "eth0") == 0 || strcmp(hwa->if_name, "lo") == 0)
 			continue;
-		vm_node = Calloc(1, sizeof(*vm_node));
+		vm_node = Calloc(1, sizeof(struct vm_iface_info));
 		vm_node->if_index = hwa->if_index;
 		strcpy(vm_node->ip_addr, Sock_ntop_host(hwa->ip_addr, sizeof(*(hwa->ip_addr))));
 		memcpy(vm_node->if_haddr, hwa->if_haddr, sizeof(hwa->if_haddr));
@@ -110,9 +116,9 @@ struct vm_iface_info *get_vm_iface_info(void)
 	return vm_head;
 }
 
-void print_vm_iface_info(struct vm_iface_info *vm)
+void print_vm_iface_info(struct vm_iface_info *vm_iface)
 {
-	struct vm_iface_info *t = vm;
+	struct vm_iface_info *t = vm_iface;
 	char *p;
 	int i;
 	printf("#########\n");
