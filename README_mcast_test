@@ -1,0 +1,4 @@
+Each machine sleeps 15 seconds for start_app script to run
+Each machine decides to quit the application with a probability of 0.5. 
+The remaining machines send out a "Tour has ended" message every second with probability 0.01 - around 10-30 seconds for one of the nodes to send it. 
+After this message the code then works as described in the assignment.
