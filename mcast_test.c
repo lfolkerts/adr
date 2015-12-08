@@ -3,6 +3,8 @@
 #include "hw_addrs.h"
 #include "params.h"
 
+
+#ifdef MCAST_TEST
 #define MCAST_MSG_LEN 256
 #define TOUR_END_MSG "<<<This is node %s. Tour has ended. Group members please identify yourselves>>>"
 #define TOUR_END_MIDENTIFY "Tour has ended. Group members please identify yourselves"
@@ -110,3 +112,6 @@ int main(int argc, char **argv)
 	close(recv_mcastfd);
 	return 1;
 }
+#else
+int main(int argc, char **argv) { return -1; }
+#endif
