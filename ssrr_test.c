@@ -14,7 +14,7 @@
 #define IPADDR_STRLEN 16
 #define IPADDR_LEN 4
 #define MSGARG_LEN IPADDR_LEN
-#define RT_MSG_LEN 256
+#define RT_MSG_LEN 200
 #define MAX_ARGS  RT_MSG_LEN/MSGARG_LEN
 #define NUM_PINGS 5 
 
@@ -36,7 +36,6 @@ int main(int argc, char **argv)
 	uint32_t sendrt_ip4addr, destrt_ip4addr;
 	struct sockaddr * recv_addr;
 	char *vm_recv;
-	int rt_rmsg_len;
 	char template[] = "/tmp/tmpfile_XXXXXX";
 	char lhost_name[HOST_NAME_MAX];
 	char canonical_ip_src[INET_ADDRSTRLEN];	
@@ -81,8 +80,6 @@ int main(int argc, char **argv)
 #else
 	me_flag =1;
 #endif
-	mkstemp(template);
-	unlink(template);
 	rtfd = bind_rt_socket(src_port);
 	
 	if(me_flag) //compose first message with translate argv
@@ -92,7 +89,6 @@ int main(int argc, char **argv)
 		ip_addr = get_canonical_ip(lhost_name);
 		for(j=0; j<MSGARG_LEN; j++){ ipaddr_buf[j]=0; }//empty bufferdd
 		inet_pton(AF_INET, ip_addr, &sendrt_ip4addr);
-		fprint_bytes(stderr, (char*)&sendrt_ip4addr, IPADDR_LEN);
 		sendrt_ip4addr = htonl(sendrt_ip4addr);
 		memcpy(ipaddr_buf, &sendrt_ip4addr, IPADDR_LEN);
 		memcpy(&rt_rmsg[msgarg_ind*MSGARG_LEN], ipaddr_buf, MSGARG_LEN);
@@ -113,12 +109,10 @@ int main(int argc, char **argv)
 			for(j=0; j<MSGARG_LEN; j++){ ipaddr_buf[j]=0; }//empty buffer
 			inet_pton(AF_INET, ip_addr, &destrt_ip4addr);
 			destrt_ip4addr = htonl(destrt_ip4addr);
-			fprint_bytes(stderr, (char*)&destrt_ip4addr, IPADDR_LEN);
 			memcpy(ipaddr_buf, &destrt_ip4addr, IPADDR_LEN);
 			memcpy(&rt_rmsg[msgarg_ind*MSGARG_LEN], ipaddr_buf, MSGARG_LEN);
 		}
-		rt_len = (++msgarg_ind)*MSGARG_LEN;
-		fprint_bytes(stderr, rt_rmsg, rt_len);
+		rt_len = (msgarg_ind+1)*MSGARG_LEN;
 		me_flag=1; //still set
 	}
 
@@ -139,11 +133,11 @@ int main(int argc, char **argv)
 			memcpy(&destrt_ip4addr, &rt_smsg[0], IPADDR_LEN); //me (from send buffer)
 			destrt_ip4addr = ntohl(destrt_ip4addr); 
 			vm_recv = get_vm_name(destrt_ip4addr);
-			if(vm_recv != NULL){ fprintf(stdout, "Node %s sending to %s:", lhost_name, vm_recv); }
+			if(vm_recv != NULL){ fprintf(stderr, "Node %s sending to %s:", lhost_name, vm_recv); }
 			else{ fprintf(stderr, "VM recieve node not found:"); fprint_bytes(stderr, (char*)&destrt_ip4addr, IPADDR_LEN); }
 			
 			rt_len -= MSGARG_LEN;
-			fprint_bytes(stdout, rt_smsg, rt_len);
+			fprint_bytes(stderr, rt_smsg, rt_len);
 			send_rt(rtfd, rt_smsg, rt_len, sendrt_ip4addr, destrt_ip4addr, get_eph_port());
 			me_flag = 0; //reset flag
 		}
@@ -157,16 +151,13 @@ int main(int argc, char **argv)
 			fprintf(stderr, "Node %s Pinging\n", lhost_name); //ping code here
 			ping_flag = 0;
 			ping_cnt++;
-			alarm(1);
+			alarm(ALARM_RATE);
 		}	
 
-		fprintf(stderr, "Node %s Selecting\n", lhost_name);
 		timeout_err = select(max_fd, &rset, NULL, NULL, &tv); //is pselect better?
-		fprintf(stderr, "Node %s Select Ended\n", lhost_name);
 
 		if (timeout_err < 0) 
 		{
-			fprintf(stderr, "Node %s Timeout\n", lhost_name);
 			if(errno == EINTR && ping_cnt > ping_stop)
 			{
 					//send mcast msg to stop
@@ -188,8 +179,7 @@ int main(int argc, char **argv)
 		}
 		else if(FD_ISSET(rtfd, &rset))
 		{ 
-			fprintf(stderr, "Node %s Recieved msg\n", lhost_name);
-			rt_rmsg_len = RT_MSG_LEN;
+			rt_len = RT_MSG_LEN;
 			recv_addr = recv_rt(rtfd, rt_rmsg, &rt_len, sizeof(struct sockaddr_in));
 			
 			time (&rawtime);
@@ -202,9 +192,9 @@ int main(int argc, char **argv)
 			}
 			vm_recv = get_vm_name((uint32_t)((struct sockaddr_in*)recv_addr)->sin_addr.s_addr);
 	
-			fprintf(stderr, "Time: %p\n\tNode %s Message Recieved From %s:\n", asctime(timeinfo), lhost_name, vm_recv);
+			fprintf(stderr, "Time: %p\n\tNode %s Message Recieved From %s(%d bytes): ", asctime(timeinfo), lhost_name, vm_recv, rt_len);
 			fprint_bytes(stderr, rt_rmsg, rt_len);
-			if(rt_rmsg_len < MSGARG_LEN*2)//we are the last argument - stop after a couple of pings
+			if(rt_len < MSGARG_LEN*2) //we are the last argument - stop after a couple of pings
 			{
 				ping_stop = ping_cnt + NUM_PINGS;
 			}
