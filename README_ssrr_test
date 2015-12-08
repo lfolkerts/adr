@@ -1,0 +1,8 @@
+This test will use ssrr.
+The first argument is the starting node. The node will recogize itself.
+No Stop to fake "Pinging" - will need to kill app.
+
+Use 
+~/cse533/start_app "ssrr_3650 vm5 vm3 vm2 vm5 vm1"
+Different arguments and redirection can be used.
+
