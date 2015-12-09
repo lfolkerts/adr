@@ -1,29 +1,44 @@
 #define ADR_TEST
-
 #ifdef ADR_TEST
 #include "unp.h"
-
+#include <linux/if_packet.h>
+#include <linux/if_ether.h> 
+#include <netinet/ether.h>
+#include "arp.h"
+#include "hw_addrs.h"
+#include "arpcache.h"
+#include "params.h"
 #define TEST
-
-
+#define IP_LEN 4
+#define IP_STRLEN 16
+#define UNIX_BUFLEN 64
+#define ID_LEN 2
+#define ETH_LEN 6
 
 int main(int argc, char **argv)
 {
-	int unix_rfd, pf_fd, max_fd;
-	/* define as an array instead of a pointer to make the string writable */
-	int flag = 0, count = 0; 
+	int unix_rfd, unix_acceptfd, pf_fd, max_fd;
 	char template[] = "/tmp/tmpfile_XXXXXX";
 	char vm_name[HOST_NAME_MAX];
 	char lhost_name[HOST_NAME_MAX];
-	char *rhost_name, *canonical_ip;
-	char canonical_ip_src[INET_ADDRSTRLEN];
-	char res_buf[MAX_MSG_SZ];
-	int src_port;
-	char msg[] = "xx";
-	uint16_t dest_port;
+	int src_port, dest_port;
+	char arp_msg[ID_LEN];	
+
+	struct hwa_info* hwahead, *hwa, *ifi;
+	char ip4 [IP_LEN];
+	char unix_reqbuf[UNIX_BUFLEN], unix_sbuf[UNIX_BUFLEN];
+	struct sockaddr_in ipaddrreq;
+	SA* unix_acceptsa;
+	struct arphdr *arp_shdr, *arp_rhdr;
+	struct ether_arp *eth_shdr,*eth_rhdr, *srceth, *dsteth;
+	char arp_rmsg[UNIX_BUFLEN];
+	fd_set rset;	
+	uint8_t replywait_flag = 0;
+	int timeout_err;
+	char ethsrc[ETH_LEN], ethdest[ETH_LEN];
 #ifdef TEST
 	srand(time(NULL)*getpid());
-	sleep(ARP_SLEEP_DELAY);
+	sleep(ARP_START_DELAY);
 #endif
 	/* initialize the sockets */
 
@@ -35,42 +50,45 @@ int main(int argc, char **argv)
 	pf_fd = bind_pf_socket();
 
 	hwahead = get_hw_addrs();
-	global_hw_head = hwahead;
 	
 	for (hwa = hwahead; hwa != NULL; hwa = hwa->hwa_next) 
 	{
-		if(hwa->ip_alias == 0 && hwa->ip_loop == 0 && hwa->if_name[3] == '0')
+		if(hwa->ip_alias == 0 && hwa->ip_l.id == 0 && hwa->if_name[3] == '0')
 		{
-			memcpy(&cannon_ip, &((struct sockaddr_in *)hwa->ip_addr)->sin_addr, sizeof(struct in_addr));
-	I		interface = hwa;
+			memcpy(&ip4, &((struct sockaddr_in *)hwa->ip_addr)->sin_addr.s_addr, IP_LEN);
+	I		ifi = hwa;
 	   		break;
 	 	}
      	}
 
 	max_fd = (pf_fd > unix_rfd) ? pf_fd+1 : unix_rfd+1;
 
-	signal(SIGALRM, timeout_alarm);
-	alarm_flag=1;
+	signal(SIGALRM, &timeout_alarm);
+	get_lhostname(lhost_name, sizeof(lhost_name));
+	unix_acceptfd = -1;
 	while (1) {
 
 		FD_ZERO(&rset);
 		FD_SET(pf_fd, &rset);
 		FD_SET(unix_rfd, &rset);
-
-		get_lhostname(lhost_name, sizeof(lhost_name));
-	
-		if(alarm_flag)
+		if(unix_acceptfd > 0)
 		{
-			alarm(1);
+			FD_SET(unix_acceptfd, &rset);	
+		}
+	
+		if(replywait_flag==0)
+		{
+			alarm(ARP_ALARM);
 		}	
-		timeout_err = select(maxfd, &rset, NULL, NULL, NULL);
+		timeout_err = select(max_fd, &rset, NULL, NULL, NULL);
 		if (timeout_err < 0)
                 {
                         if(errno == EINTR) //alarm
                         {
                                 close(unix_acceptfd);
-				deleteTourInformation(tour_sockfd,1);
+				delete_cache_entry(unix_acceptfd);
 				unix_acceptfd = -1;     
+				replywait_flag=0; 
                   	}
                         else //unknown error
                         {
@@ -81,90 +99,99 @@ int main(int argc, char **argv)
 		else if(timeout_err == 0) //ligit timeout - no packet recieved in long time abort
                 {
 			close(unix_acceptfd);
-			deleteTourInformation(tour_sockfd,1);
+			remove_arp_entry(unix_acceptfd,1);
 			unix_acceptfd = -1;
 			replywait_flag=0; 
                 }
 
 		if(FD_ISSET(unix_rfd,&rset))
 		{
-			if(replywait_flag==1); //still awaiting reply- not sure how to handle this yet
+			if(replywait_flag==1) //still awaiting reply- not sure how to handle this yet dont want to fork
+			{
+				fprintf(stderr, "ARP request ignored - already processing a requesti\n");
+			}
 			else
 			{	
-				if(unix_accept > 0)//close old socket and accept new one
+				if(unix_acceptfd > 0)//close old socket and accept new one
 				{
 					close(unix_acceptfd);
 				}
 				unix_acceptfd = accept(unix_rfd, NULL, NULL);
+				replywait_flag = 1;
 			}
 		}	
 		if(FD_ISSET(unix_acceptfd, &rset))
 		{
 			recv_unix_req(unix_acceptfd, unix_reqbuf);
-			memcpy(&ipreqaddr,tbuff,sizeof(struct sockaddr_in)); //copy over info
-			rinfo  = lookup_cache_info(ipreqaddr.sin_addr.s_addr);
+			memcpy(&ipreqaddr,unix_reqbuf,sizeof(struct sockaddr_in)); //.idy over info
+			arpi  = lookup_cache_info(ipreqaddr.sin_addr.s_addr);
 
-			if(rinfo)//found in cache
+			if(arpi != NULL)//found in cache
 			{
-				memcpy(unix_sbuf, &rinfo->dest_mac, sizeof(hwaddr));	
+				memcpy(unix_sbuf, &arpi->dest_mac, sizeof(hwaddr));	
 				send_unix_reply(unix_acceptfd, unix_sbuf);
 				replywait_flag=0; 
 			}
 			else
 			{
-				create_cache_info(sa,interface,ipaddr.sin_addr.s_addr,NULL,&tour_sa,sd2);
-				eth_shdr.h_proto = htons(GRP8_P_ARP);
+				create_cache_info(ifi,ipaddr.sin_addr.s_addr,NULL,&unix_accept_sa);
+				eth_shdr.h_proto = htons(ARPPROTO);
 				arp_shdr.src_ip = ((struct sockaddr_in *)interface->ip_addr)->sin_addr.s_addr;
 				arp_shdr.dest_ip = ipreqaddr.sin_addr.s_addr;
 				memcpy(arp_shdr.src_mac, eth_shdr.h_source,6);
-				arp_shdr.op = OP_ARP_REQ;
+				arp_shdr.type = ARP_REQ_TYPE;
    		           	send_arp(pf_fd, arp_shdr, eth_shdr,interface->if_index);
-				replywait_flag = 1;
+				unix_acceptfd = -1;
+				replywait_flag = 0; //so long we have the fd in cahce we can take another request
 			}
 		
 		}
 		if(FD_ISSET(pf_fd,&rset))
 		{
-			recv_arp(pf_fd, arp_rmsg);
-			memcpy(&eth_shdr, arp_rmsg, sizeof(struct ethhdr));
-			memcpy(&arp_rhdr, arp_rmsg + sizeof(struct ethhdr), sizeof(arprr));
-			src = ether_ntoa((struct ether_addr *)&(eth_shdr.h_source));
-			dst = ether_ntoa((struct ether_addr *)&(eth_shdr.h_dest));
+			recv_addr = (struct sockaddr_ll*)recv_arp(pf_fd, arp_rmsg);
+			memcpy(arp_rhdr, arp_rmsg, sizeof(struct arphdr));
 			
-			rinfo = lookup_cache_info(arp_rhdr.dest_ip);
-			if(arp_rhdr.dest_ip != cannon_ip.s_addr)
-			{
-				fprintf(stderr, "Wrong node\n");
-			}
-			else if(arp_rhdr.op == ARP_REQ)
-			{
-				
-				create_cache_info(rcv_sa,interface,arp_rhdr.src_ip,arp_rhdr.src_mac,NULL,-1);
-				memcpy(&eth_rhdr,&eth_shdr,sizeof(struct ethhdr));	
-				memcpy(eth_shdr.h_source,rinfo->dest_mac.sll_addr,6);
-				memcpy(eth_shdr.h_dest,eth_rhdr.h_source,sizeof(struct ether_addr));
-				memcpy(&arp_shdr,&arp_rhdr,sizeof(arprr));
-				
-				arp_shdr.src_ip= arp_rhdr.dest_ip;
-				arp_shdr.dest_ip= arp_rhdr.src_ip;
-				memcpy(arp_shdr.src_mac,rinfo->dest_mac.sll_addr,6);
-				memcpy(arp_shdr.dest_mac,eth_shdr.h_dest,sizeof(arp_rhdr.src_mac));
-				arp_rhdr.op =  OP_ARP_REP;
+			arpi = lookup_cache_info(arp_rhdr->e.arp_tpa);
 
-				send_arp(pf_fd, arp_hdr, eth_hdr,interface->if_index);
-			}
-			else if(arp_rhdr.op == ARP_REP)
+			if(arp_rhdr->e.arp_op == ARP_REQ_TYPE ) //we dont have the entry in our cache - disregard
 			{
-				dst_mac = ether_ntoa((struct ether_addr *)&(eth_shdr.h_source));
-				create_cahce_info(rcv_sa,interface,arp_rhdr.src_ip,arp_rhdr.src_mac,NULL,-1);
+				do{ arpi = malloc(sizeof(struct arp_node)); }while(apri==NULL);
+				arpi->ip4 = ntohl(arp_rhdr->e.arp_spa);
+				memcpy(arpi->hwa, arp_rhdr->e.arp_sha, ETH_ALEN)
+				arpi->fd = -1; //not our fd
+				arpi->sll_hatype = recv_addr->sll_hatype;
+				arpi->sll_ifindex =  recv_addr->sll_ifindex;
+				create_cache_entry(arpi);
+				
+				arpi = lookup_cache_info(arp_rhdr->e.arp_tpa);
+			
+				if(arpi->ip4 == my_ip)
+				{		
+					
+					memcpy(arp_shdr->eth.h_source, arpi->hwa.sll_addr, ETH_ALEN);
+					memcpy(arp_shdr->eth.h_dest, arp_rhdr->eth.h_source,sizeof(struct ether_addr));
+					memcpy(&arp_shdr,&arp_rhdr,sizeof(arprr));
+				
+					arp_shdr.src_ip= arp_rhdr.dest_ip;
+					arp_shdr.dest_ip= arp_rhdr.src_ip;
+					arp_rhdr->type =  ARP_REPLY_TYPE;
+					arp_rhdr->id = ARP_ID;
+			
+					send_arp(pf_fd, arp_shdr, ifi->if_index, NULL, 0);
+				}
+			}
+			else if(arp_rhdr->type == ARP_REPLY_TYPE)
+			{
+				dsteth = ether_ntoa((struct ether_addr *)&(eth_shdr.h_source));
+				arpi = create_cache_entry(rcv_sa,ifi,arp_rhdr.src_ip,arp_rhdr.src_mac,NULL,-1);
 
-				if(replywaiting_flag==1)
+				if(replywait_flag==1)
 				{
-					send_unix_reply();
+					send_unix_reply(unix_acceptfd, arpi, arpi->size);
 				}
 				else //timed out - make sure destroyed
 				{
-					destroyRouteInformation(arp_rhdr.src_ip);
+					delete_cache_entry(arp_rhdr.src_ip);
 				}
 			}
 
