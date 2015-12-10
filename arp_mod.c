@@ -23,7 +23,7 @@ static void timeout_alarm(int signo){ signal(signo, timeout_alarm); return; }
 int main(int argc, char **argv)
 {
 	int unix_rfd, unix_acceptfd, pf_fd, max_fd;
-	char template[] = "/tmp/tmpfile_XXXXXX";
+	char template[64];
 	char vm_name[HOST_NAME_MAX];
 	char lhost_name[HOST_NAME_MAX];
 	int src_port, dest_port;
@@ -48,12 +48,13 @@ int main(int argc, char **argv)
 	sleep(ARP_START_DELAY);
 #endif
 	/* initialize the sockets */
-
-#ifdef TEST
-	mkstemp(template);
+	strncpy(template,SERVER_FILE, 64);
+//	mkstemp(template);
 	unlink(template);
-	unix_rfd = bind_unix_socket(template);
-#endif
+	unix_rfd = bind_unix_socket(SERVER_FILE);
+
+	arpInit();
+
 	pf_fd = bind_pf_socket();
 
 	hwahead = get_hw_addrs();
@@ -122,11 +123,12 @@ int main(int argc, char **argv)
 
 		if(FD_ISSET(unix_rfd,&rset))
 		{
+			/*
 			if(replywait_flag==1) //still awaiting reply- not sure how to handle this yet dont want to fork
 			{
 				fprintf(stderr, "ARP request ignored - already processing a requesti\n");
 			}
-			else
+			else*/
 			{	
 				if(unix_acceptfd > 0)//close old socket and accept new one
 				{

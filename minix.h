@@ -1,5 +1,5 @@
-#ifndef MCAST_H__
-#define MCAST_H__
+#ifndef __MINIX_H__
+#define __MINIX_H__
 
 #include <stdint.h>
 #define SERVER_PORT 31337

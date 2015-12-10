@@ -2,8 +2,8 @@
 #include "mcast.h"
 #include "hw_addrs.h"
 #include "params.h"
-
-
+#include "minix.h"
+#define MCAST_TEST
 #ifdef MCAST_TEST
 #define MCAST_MSG_LEN 256
 #define TOUR_END_MSG "<<<This is node %s. Tour has ended. Group members please identify yourselves>>>"

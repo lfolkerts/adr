@@ -12,10 +12,11 @@ int bind_unix_socket(char *path)
         unlink(path);
         addr.sun_family = AF_LOCAL;
         strcpy(addr.sun_path, path);
+
         Bind(sockfd, (void *) &addr, sizeof(addr));
         return sockfd;
 }
-void connect_domain_socket(int sockfd, char *path)
+void connect_unix_socket(int sockfd, char *path)
 {
         struct sockaddr_un addr;
 
