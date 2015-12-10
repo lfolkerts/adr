@@ -16,7 +16,7 @@ struct myarphdr
 	uint16_t id;
 };
 
-int bind_pf_socket();
+int bind_pf_socket(int if_index);
 int send_arp(int sockfd, struct myarphdr* arp, int if_index, char* msg, int msg_len);
 struct sockaddr_ll* recv_arp(int sockfd, char* msg, int msg_len);
 #endif
