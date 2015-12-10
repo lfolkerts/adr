@@ -89,4 +89,36 @@ void delete_cache_entry(uint32_t ip4_addr)
 	}
 	return;
 }
+int delete_empty_cache_entry(uint32_t ip4_addr)
+{
+	int fd_ret = -1;
+        arp_node* index, *index_prev=NULL;
+
+        index = ARP_Arr[arp_hash(ip4_addr)];
+
+
+        while(index!=NULL)
+        {
+                if(index->ip4 == ip4_addr && index->fd != -1)
+                {
+			fd_ret = index->fd;
+                        break;
+                }
+                index_prev = index;
+                index = index->next;
+        }
+        if(index==NULL){ return -1;}
+        else if(index_prev==NULL)//head of list
+        {
+                ARP_Arr[arp_hash(ip4_addr)] = index->next;
+                free(index);
+        }
+        else
+        {
+                index_prev->next = index->next;
+                free(index);
+        }
+        return fd_ret;
+}
+
 
