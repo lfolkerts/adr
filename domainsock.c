@@ -28,14 +28,15 @@ void connect_domain_socket(int sockfd, char *path)
 int send_unix_reply(int sockfd, char *msg, int msg_len)
 {
 	struct sockaddr_un addr;
-
+	char* sun;
         memset(&addr, 0x0, sizeof(addr));
     
         /* sendto to the domain socket */
+ 	sun = get_sunpath(sockfd);
+	strncpy(addr.sun_path, sun,  108);
         addr.sun_family = AF_LOCAL;
-	addr.sun_path = get_sunpath(sockfd);
         Sendto(sockfd, msg, msg_len, 0, (void *) &addr, sizeof(addr));
-        return;
+        return 0;
 
 }
 
@@ -43,10 +44,16 @@ int send_unix_reply(int sockfd, char *msg, int msg_len)
 int recv_unix_req(int sockfd, char* msg, int msg_len)
 {
         struct sockaddr_un addr;
+	char* sun;
+	socklen_t len;
+
 	addr.sun_family = AF_LOCAL;
-        addr.sun_path = get_sunpath(sockfd);
-        socklen_t len = sizeof(addr);
-        Recvfrom(sockfd, msg, msglen, 0, (void *) &addr, &len);
+	sun = get_sunpath(sockfd);
+	strncpy(addr.sun_path, sun,  108);
+        
+
+	len = sizeof(addr);
+        Recvfrom(sockfd, msg, msg_len, 0, (void *) &addr, &len);
 	return 0;
 
 }

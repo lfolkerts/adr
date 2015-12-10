@@ -1,10 +1,10 @@
 #include"unp.h"
 #include <stdint.h>
-#include "arp_cache.h"
+#include "arpcache.h"
 
 #define ARP_HASH 255
 
-arp_node* ARP_Arr[ARP_HASH]; //unrolled linked list for efficient cache
+struct arp_node* ARP_Arr[ARP_HASH]; //unrolled linked list for efficient cache
 
 void arpInit()
 {
@@ -23,7 +23,7 @@ static int arp_hash(uint32_t ip)
 
 struct arp_node* lookup_cache_entry(uint32_t ip4_addr)
 {
-	arp_node* index;
+	struct arp_node* index;
 	
 	index = ARP_Arr[arp_hash(ip4_addr)];
 
@@ -40,7 +40,7 @@ struct arp_node* lookup_cache_entry(uint32_t ip4_addr)
 	return index;	
 }
 
-int create_cache_entry(arp_node* node)
+int create_cache_entry(struct arp_node* node)
 {
 	int int_index;
 	struct arp_node* index, *check;
@@ -62,7 +62,7 @@ int create_cache_entry(arp_node* node)
 }
 void delete_cache_entry(uint32_t ip4_addr)
 {
-	arp_node* index, *index_prev=NULL;
+	struct arp_node* index, *index_prev=NULL;
 
         index = ARP_Arr[arp_hash(ip4_addr)];
 
@@ -92,7 +92,7 @@ void delete_cache_entry(uint32_t ip4_addr)
 int delete_empty_cache_entry(uint32_t ip4_addr)
 {
 	int fd_ret = -1;
-        arp_node* index, *index_prev=NULL;
+        struct arp_node* index, *index_prev=NULL;
 
         index = ARP_Arr[arp_hash(ip4_addr)];
 

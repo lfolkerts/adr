@@ -11,7 +11,8 @@ struct arp_node
         char hwa[HWA_LEN];
         int fd;
 	int sll_ifindex;
-	uint16_t sll_hatype;	
+	uint16_t sll_hatype;
+	struct arp_node *next;
 };
 
 

@@ -2,6 +2,7 @@
 #define __ARP_H__
 
 #include <linux/if_ether.h>
+#include <netinet/ether.h>
 #include <stdint.h>
 #define ARP_REPLY_TYPE 1
 #define ARP_REQ_TYPE 2
