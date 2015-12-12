@@ -7,20 +7,8 @@
 
 #define ARRAY_SIZE(name) sizeof(name)/sizeof(name[0])
 
-int bind_domain_socket(char *path)
-{
-	struct sockaddr_un addr;
-	int sockfd = Socket(AF_LOCAL, SOCK_DGRAM, 0 );
-
-	memset(&addr, 0x0, sizeof(addr));
-	unlink(path);
-	addr.sun_family = AF_LOCAL;
-	strcpy(addr.sun_path, path);
-	Bind(sockfd, (void *) &addr, sizeof(addr));
-	return sockfd;
-}
 /*Modified parts from lib/udp_client.c*/
-int bind_mcast_socket(char* mcast_ip, int port, struct sockaddr** saudp, socklen_t* saudp_len)
+int create_mcast_socket(char* mcast_ip, int port, struct sockaddr** saudp, socklen_t* saudp_len)
 {
 	int sockfd, err;
 	struct addrinfo hints, *res;
@@ -41,8 +29,7 @@ int bind_mcast_socket(char* mcast_ip, int port, struct sockaddr** saudp, socklen
 	do 
 	{
 		sockfd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-		if (sockfd >= 0)
-			break;          /* success */
+		if (sockfd >= 0){ break;          /* success */ }
 	} while ( (res = res->ai_next) != NULL);
 
 	if (res == NULL)        /* errno set from final socket() */
@@ -58,28 +45,6 @@ int bind_mcast_socket(char* mcast_ip, int port, struct sockaddr** saudp, socklen
 	//fprintf(stdout, "Bound %d\n", sockfd);
 	return sockfd;
 }
-
-
-void connect_domain_socket(int sockfd, char *path)
-{
-	struct sockaddr_un addr;
-
-	memset(&addr, 0x0, sizeof(addr));
-	addr.sun_family = AF_LOCAL;
-	strcpy(addr.sun_path, path);
-	Connect(sockfd, (void *) &addr, sizeof(addr));
-}
-
-void connect_mcast_socket(int sockfd, char *path)
-{
-	struct sockaddr_un addr;
-
-	memset(&addr, 0x0, sizeof(addr));
-	addr.sun_family = AF_INET;
-	strcpy(addr.sun_path, path);
-	Connect(sockfd, (void *) &addr, sizeof(addr));
-}
-
 
 
 void send_mcast(int sendfd, char* buf, SA *sadest, socklen_t salen)
