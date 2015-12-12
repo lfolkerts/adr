@@ -12,7 +12,7 @@
 #include "params.h"
 #include "domainsock.h"
 #define TEST
-#define SELFTEST
+//#define SELFTEST
 
 #define IP_LEN 4
 #define IP_STRLEN 16
@@ -45,7 +45,7 @@ int main(int argc, char **argv)
 	char my_ether[ETH_ALEN];
 	struct sockaddr_in ipreqaddr;
 	struct sockaddr_ll* recv_addrll;
-
+	uint8_t yup_flag =1;
 
 	get_lhostname(lhost_name, sizeof(lhost_name));
 #ifdef TEST
@@ -115,11 +115,9 @@ int main(int argc, char **argv)
 		{
 			FD_SET(unix_acceptfd, &rset);	
 		}
-#else
-		alarm(20);
 #endif
 		fprintf(stderr, "Selecting\n");
-		timeout_err = select(max_fd, &rset, NULL, NULL, NULL);
+		if(yup_flag==0)timeout_err = select(max_fd, &rset, NULL, NULL, NULL);
 		fprintf(stderr, "Select Ended\n");
 		if (timeout_err < 0)
 		{
@@ -129,6 +127,8 @@ int main(int argc, char **argv)
 				close(unix_acceptfd);
 				unix_acceptfd = -1;     
 				replywait_flag=0; 
+#else
+				replywait_flag=1;
 #endif
 			}
 			else //unknown error
@@ -167,7 +167,8 @@ int main(int argc, char **argv)
 		{
 			recv_unix_req(unix_acceptfd, unix_reqbuf, UNIX_BUFLEN);
 #else
-		if(!FD_ISSET(pf_fd,&rset)){
+		if(yup_flag==1)
+		{
 			inet_pton(AF_INET, VM1_ADDR, &ipreqaddr.sin_addr.s_addr);
 			ipreqaddr.sin_addr.s_addr = htonl(ipreqaddr.sin_addr.s_addr);
 			memcpy(unix_reqbuf, &ipreqaddr.sin_addr.s_addr, 4);
@@ -222,9 +223,9 @@ int main(int argc, char **argv)
 				unix_acceptfd = -1;
 				replywait_flag = 0; //so long we have the fd in cahce we can take another request
 			}
-
 		}
-		if(FD_ISSET(pf_fd,&rset))
+
+		if(yup_flag==0 && FD_ISSET(pf_fd,&rset))
 		{
 			fprintf(stderr, "%s SET HERE\n",lhost_name);
 			recv_addrll = (struct sockaddr_ll*)recv_arp(pf_fd, arp_rmsg, UNIX_BUFLEN );
@@ -242,6 +243,7 @@ int main(int argc, char **argv)
 			arpi->sll_ifindex =  recv_addrll->sll_ifindex;
 			create_cache_entry(arpi);
 
+			fprintf(stderr, "%s SET HERE\n",lhost_name);
 			if(arp_rhdr->e.arp_op == ARP_REQ_TYPE ) //we dont have the entry in our cache - disregard
 			{
 				memcpy(&ipreqaddr.sin_addr.s_addr, arp_rhdr->e.arp_tpa, IP_LEN);
@@ -291,9 +293,7 @@ int main(int argc, char **argv)
 			replywait_flag=0; //got our reply
 		}
 
-
-
-
+		yup_flag=0;
 
 	}//while 1
 	unlink(template);
