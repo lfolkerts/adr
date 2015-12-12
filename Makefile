@@ -12,7 +12,7 @@ MCAST_OBJS :=  mcast_test.o minix.o mcast.o hw_addrs.o
 SSRR_OBJS :=  ssrr_test.o minix.o rt.o hw_addrs.o
 ARPTEST_OBJS :=  arp_test.o minix.o hw_addrs.o domainsock.o arp.o arpcache.o
 
-TOUR_OBJS :=  tour.o minix.o rt.o hw_addrs.o mcast.o
+TOUR_OBJS :=  tour.o minix.o rt.o hw_addrs.o mcast.o myping.o
 ARP_OBJS := arp_mod.o minix.o hw_addrs.o domainsock.o arp.o arpcache.o
 
 program_INCLUDE_DIRS :=  /users/cse533/Stevens/unpv13e/lib/
@@ -50,7 +50,7 @@ mcast_3650: $(MCAST_OBJS)
 	$(CC) $(FLAGS)  $(CPPFLAGS) $(MCAST_OBJS)  -o mcast_3650  $(LDFLAGS)  
 
 clean:
-	@- $(RM) $(testprogram_NAMES)
+	@- $(RM) $(testprogram_NAMES) 
 	@- $(RM) $(program_OBJS)
 
 distclean: clean

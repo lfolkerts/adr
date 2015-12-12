@@ -4,6 +4,7 @@
 #include "rt.h"
 #include "minix.h"
 #include "mcast.h"
+#include "myping.h"
 #include <stdint.h>
 #include<signal.h>
 #include<stdio.h>
@@ -30,7 +31,7 @@ static void fprint_bytes(FILE* file, char* buf, int size);
 int main(int argc, char **argv)
 {
 	int i, j, msgarg_ind=0; //indexes
-	int rtfd, send_mcastfd, recv_mcastfd, max_fd=0;
+	int rtfd=-1, send_mcastfd=-1, recv_mcastfd=-1, pingfd=-1, max_fd=0;
 	int src_port, dest_port;
 	char rt_smsg[RT_MSG_LEN], rt_rmsg[RT_MSG_LEN], mcast_smsg[MCAST_MSG_LEN], mcast_rmsg[MCAST_MSG_LEN];
 	int repeats=0, rt_len=0; //repeated sequential nodes; length of the message we are sending
@@ -56,6 +57,8 @@ int main(int argc, char **argv)
 	int ping_cnt=0, ping_stop = TO_EXIT;
 	time_t rawtime;
 	struct tm * timeinfo;		
+	
+	struct ping_node *ping_head=NULL, *ping_index, *ping_insert;
 
 	get_lhostname(lhost_name, HOST_NAME_MAX);
 	//get different random seeds
@@ -83,7 +86,8 @@ int main(int argc, char **argv)
 
 
 	rtfd = bind_rt_socket(src_port);
-       
+	pingfd = create_ping_socket();      	
+ 
 	sleep(START_DELAY); //make sure socket is open on all nodes before starting	
 	
 	if(me_flag) //compose first message with translate argv
@@ -125,6 +129,7 @@ int main(int argc, char **argv)
 
 
 	max_fd = (rtfd>max_fd)?(rtfd + 1):max_fd;
+	max_fd = (pingfd>max_fd)?(pingfd + 1):max_fd;
 	signal(SIGALRM, ping_alarm);
 	while(tour_flag==1) //pinging
 	{
@@ -174,12 +179,18 @@ int main(int argc, char **argv)
 		if(ping_flag==1 && recv_flag==0)
 		{
 			fprintf(stderr, "Node %s \"Pinging\"\n", lhost_name); //ping code here
+			for(ping_index = ping_head; ping_index !=NULL; ping_index = ping_index->next)
+			{
+				inet_ntop(AF_INET, &ping_index->ip4, (char*)&ipaddr_buf, IPADDR_STRLEN);
+				ping(ipaddr_buf);
+			}	
 			ping_flag = 0;
 			ping_cnt++;
 			alarm(ALARM_RATE);
 		}	
 	
 		FD_SET(rtfd, &rset);
+		FD_SET(pingfd, &rset);
 		if(join_mcast_triflag == 0xff){ FD_SET(recv_mcastfd, &rset); }
 		
 		timeout_err = select(max_fd, &rset, NULL, NULL, &tv); //is pselect better?
@@ -239,9 +250,32 @@ int main(int argc, char **argv)
 			{
 				me_flag = 1; //send out new message
 			}
-			//TODO: add prev node to ping list
+			
+			do{ ping_insert = malloc(sizeof(struct ping_node)); } while(ping_insert==NULL);
+			ping_insert->ip4 = (uint32_t)((struct sockaddr_in*)recv_addr)->sin_addr.s_addr;
+			ping_insert->next = NULL;
+			if(ping_head==NULL){ ping_head = ping_insert; }
+			else
+			{
+				for(ping_index=ping_head; ping_index!= NULL && ping_index->next != NULL; ping_index = ping_index->next)
+				{
+					if(ping_index->ip4 == ping_insert->ip4)
+					{  
+						ping_index=NULL; 
+						free(ping_insert); 
+						break; 
+					}
+				}
+				if(ping_index!=NULL){ping_index->next = ping_insert; }
+			}
+			ping_insert = NULL;
 			ping_flag=1;//we can start pinging now
+
 			if(join_mcast_triflag != 0xff){ join_mcast_triflag = 1;} //join mcast if not already a part of it
+		}
+		else if(FD_ISSET(pingfd, &rset))
+		{
+			read_ping();
 		}
 		else if(FD_ISSET(recv_mcastfd, &rset))
 		{
