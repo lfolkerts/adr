@@ -1,0 +1,38 @@
+Running the program
+
+This program can be run with the following commands:
+./arp_3650  			|to be run on multiple machines
+./tour_3650    			|to be run on all machines except the one you start on
+./tour_3650 vm10 vm2 vm3 ...	|arguments provided are samples. To be executed on the starting node
+
+There are a lot of files available with code. They are broken down as follows 
+
+
+Makefile		|"make" to make module files; "make test" to generate all files, including test files
+arp		.c .h	|arp communication module
+arpcache	.c .h	|contains the arpcache structures and functions
+arp_mod		.c	|the arp main module
+domainsock	.c .h 	|code to use all AF_LOCAL sockets
+hw_addrs	.c .h	|code for retrieving and manipulating hardware addresses
+in_cksum	.h	|checksum function, retrieved from http://www.inf.pucrs.br/~benso/redes601/2004_2/in_cksum.c
+mcast		.c .h	|multicast function
+minix		.c .h	|code for minix vm info
+myping		.c .h 	|code for using the ping socket
+params		.h	|some code parameters used in the code
+rt		.c .h	|code for using the route socke
+tour		.c	|main code for the tour module	
+
+Functionality
+The code functions as described in the assignment, minus the arp module
+The arp module was still having problems into late and we did not have time to integrate it into our code. 
+
+Test Modules
+
+Below are the modules used for testing, and their READMEs
+arp_test is experimental
+
+ssrr_test.c
+mcast_test.c
+README_mcast_test
+README_ssrr_test
+
