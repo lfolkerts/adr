@@ -1,0 +1,5 @@
+This module can work by typing running the arp module on all machines:
+~/cse533/start_apps arp
+And then by requesting a IP address using the sample_tour module
+e.g.
+./sample_tour vm1
