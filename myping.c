@@ -1,6 +1,7 @@
 #include "myping.h"
 #include "in_cksum.h"
-
+#include "minix.h"
+#include <stdint.h>
 struct proto	proto_v4 = { proc_v4, send_v4, NULL, NULL, 0, IPPROTO_ICMP };
 
 int	datalen = 56;		/* data that goes with ICMP echo request */
@@ -33,8 +34,7 @@ int ping(char* myhost)
 {
 	int c;
 	struct addrinfo	*ai;
-	char *h;
-
+	char vm_hostname[20], *vm_name;
 	if(myhost == NULL) return -1;
 	do{ host = malloc(strlen(myhost)+1); }while(host == NULL);
 	strcpy(host, myhost);
@@ -42,11 +42,12 @@ int ping(char* myhost)
 	pid = getpid() & 0xffff;	/* ICMP ID field is 16 bits */
 
 	ai = Host_serv(host, NULL, 0, 0);
-
-	h = Sock_ntop_host(ai->ai_addr, ai->ai_addrlen);
-	printf("PING %s (%s): %d data bytes\n",
-			ai->ai_canonname ? ai->ai_canonname : h,
-			h, datalen);
+	
+	get_lhostname(vm_hostname, 20);
+	vm_name = get_vm_name((uint32_t)((struct sockaddr_in*)ai->ai_addr)->sin_addr.s_addr);
+	printf("Node %s: PING %s: %d data bytes\n",
+			vm_hostname, vm_name,
+			 datalen);
 	
 	pr->sarecv = Calloc(1, ai->ai_addrlen);
 	pr->salen = ai->ai_addrlen;
@@ -112,6 +113,7 @@ void proc_v4(char *ptr, ssize_t len, struct msghdr *msg, struct timeval *tvrecv)
 	double	rtt;
 	struct ip *ip;
 	struct icmp *icmp;
+	char* vm_name;
 	struct timeval *tvsend;
 
 	ip = (struct ip *) ptr;		/* start of IP header */
@@ -132,9 +134,9 @@ void proc_v4(char *ptr, ssize_t len, struct msghdr *msg, struct timeval *tvrecv)
 		tvsend = (struct timeval *) icmp->icmp_data;
 		tv_sub(tvrecv, tvsend);
 		rtt = tvrecv->tv_sec * 1000.0 + tvrecv->tv_usec / 1000.0;
-
+		vm_name = get_vm_name((uint32_t)((struct sockaddr_in*)pr->sarecv)->sin_addr.s_addr);
 		printf("%d bytes from %s: seq=%u, ttl=%d, rtt=%.3f ms\n",
-				icmplen, Sock_ntop_host(pr->sarecv, pr->salen),
+				icmplen, vm_name,
 				icmp->icmp_seq, ip->ip_ttl, rtt);
 
 	}
