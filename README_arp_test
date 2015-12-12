@@ -1,7 +1,0 @@
-This module is not yet working
-
-The goal is to have the arp process running and the arp_test process to send it an ip address.
-The arp_process then will respond with the ethernet hardware address and ip address back to the test module to print out.
-
-The modules will compile but step 1 of AF_LOCAL communication is not working.
-

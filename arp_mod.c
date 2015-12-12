@@ -25,6 +25,7 @@ static void fprint_bytes(FILE* file, char* buf, int size);
 
 int main(int argc, char **argv)
 {
+#ifdef NOT_YET
 	int unix_rfd, unix_acceptfd, pf_fd=-1, max_fd;
 	char template[64];
 	char vm_name[HOST_NAME_MAX];
@@ -297,6 +298,7 @@ int main(int argc, char **argv)
 
 	}//while 1
 	unlink(template);
+#endif
 	return 0;
 }
 
